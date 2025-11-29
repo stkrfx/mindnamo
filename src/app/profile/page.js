@@ -1,7 +1,7 @@
 /*
  * File: src/app/profile/page.js
  * SR-DEV: User Profile Page (Server Component)
- * Securely fetches user data and renders the settings form.
+ * ACTION: Updated to use UserProfileTabs (File 100).
  */
 
 import { Suspense } from "react";
@@ -9,7 +9,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect } from "next/navigation";
 import { getUser } from "@/actions/user";
-import UserProfileForm from "@/components/UserProfileForm";
+// import UserProfileForm from "@/components/UserProfileForm"; // REMOVED
+import UserProfileTabs from "@/components/UserProfileTabs"; // ADDED
 import { Loader2Icon } from "@/components/Icons";
 
 export const metadata = {
@@ -35,7 +36,6 @@ export default async function ProfilePage() {
 
   const result = await getUser();
 
-  // Handle edge case where user exists in session token but not DB (e.g. deleted/banned)
   if (!result.success) {
     redirect("/login");
   }
@@ -53,7 +53,8 @@ export default async function ProfilePage() {
 
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
           <Suspense fallback={<Loading />}>
-            <UserProfileForm user={result.user} />
+            {/* Renders the tab structure with the fetched user data */}
+            <UserProfileTabs user={result.user} /> 
           </Suspense>
         </div>
 

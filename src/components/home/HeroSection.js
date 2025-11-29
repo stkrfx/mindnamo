@@ -1,12 +1,7 @@
 /*
  * File: src/components/home/HeroSection.js
  * SR-DEV: World-Class Hero Section
- *
- * FEATURES:
- * - Emotional Design: Soft gradients, calming typography.
- * - Interactive Doodles: Floating SVG elements for a "human" touch.
- * - Floating Social Proof: "Verified Expert" card overlay.
- * - Mobile-First: Uses dynamic viewport units.
+ * ACTION: FIXED Border Radius BUG on hover/animation (139).
  */
 
 "use client";
@@ -34,7 +29,7 @@ export default function HeroSection() {
       <div className="container relative z-10 px-4 md:px-6 mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           
-          {/* --- LEFT: CONTENT --- */}
+          {/* --- LEFT: CONTENT (Unchanged) --- */}
           <div className="flex flex-col space-y-8 text-center lg:text-left">
             
             {/* Trust Badge */}
@@ -101,11 +96,11 @@ export default function HeroSection() {
             </div>
           </div>
 
-          {/* --- RIGHT: ILLUSTRATION --- */}
+          {/* --- RIGHT: ILLUSTRATION (FIXED) --- */}
           <div className="relative lg:h-[650px] w-full flex items-center justify-center perspective-1000">
              
-             {/* Main Image Card */}
-             <div className="relative w-full max-w-md aspect-[4/5] bg-zinc-100 dark:bg-zinc-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-[8px] border-white dark:border-zinc-800 rotate-2 hover:rotate-0 transition-transform duration-700 ease-out group">
+             {/* The Image Card Wrapper with Constant Radius and Soft Animation */}
+             <div className="group relative w-full max-w-md aspect-[4/5] overflow-hidden rounded-[2.5rem] shadow-2xl border-[8px] border-white dark:border-zinc-800 rotate-1 hover:rotate-0 transition-transform duration-700 ease-out">
                  <Image 
                    src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?q=80&w=800&auto=format&fit=crop"
                    alt="Happy patient on video call"

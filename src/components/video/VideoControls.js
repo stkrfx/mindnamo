@@ -1,6 +1,6 @@
 /*
  * File: src/components/video/VideoControls.js
- * SR-DEV: Video Call Control Bar
+ * SR-DEV: Video Call Control Bar (Modular Component)
  * Handles media track toggling (Audio/Video) and call termination.
  */
 
@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Video, VideoOff, PhoneOff } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function VideoControls({ 
@@ -18,14 +18,18 @@ export default function VideoControls({
 }) {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
+  const [hasMedia, setHasMedia] = useState(false);
 
-  // Sync state with actual track status on mount
+  // Sync initial state with actual track status on mount
   useEffect(() => {
     if (localStream) {
+      setHasMedia(true);
       const audioTrack = localStream.getAudioTracks()[0];
       const videoTrack = localStream.getVideoTracks()[0];
       if (audioTrack) setIsMicOn(audioTrack.enabled);
       if (videoTrack) setIsCamOn(videoTrack.enabled);
+    } else {
+      setHasMedia(false);
     }
   }, [localStream]);
 
@@ -53,10 +57,12 @@ export default function VideoControls({
       {/* Mic Toggle */}
       <Button
         size="icon"
+        disabled={!hasMedia}
         variant={isMicOn ? "secondary" : "destructive"}
         className={cn(
           "rounded-full h-12 w-12 transition-all duration-200",
-          isMicOn ? "bg-zinc-700 hover:bg-zinc-600 text-white" : "bg-red-500 hover:bg-red-600"
+          isMicOn ? "bg-zinc-700 hover:bg-zinc-600 text-white" : "bg-red-500 hover:bg-red-600",
+          !hasMedia && "opacity-50 cursor-not-allowed"
         )}
         onClick={toggleMic}
         title={isMicOn ? "Mute Microphone" : "Unmute Microphone"}
@@ -67,10 +73,12 @@ export default function VideoControls({
       {/* Camera Toggle */}
       <Button
         size="icon"
+        disabled={!hasMedia}
         variant={isCamOn ? "secondary" : "destructive"}
         className={cn(
           "rounded-full h-12 w-12 transition-all duration-200",
-          isCamOn ? "bg-zinc-700 hover:bg-zinc-600 text-white" : "bg-red-500 hover:bg-red-600"
+          isCamOn ? "bg-zinc-700 hover:bg-zinc-600 text-white" : "bg-red-500 hover:bg-red-600",
+          !hasMedia && "opacity-50 cursor-not-allowed"
         )}
         onClick={toggleCam}
         title={isCamOn ? "Turn Camera Off" : "Turn Camera On"}

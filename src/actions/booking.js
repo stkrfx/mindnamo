@@ -1,7 +1,7 @@
 /*
  * File: src/actions/booking.js
  * SR-DEV: Secure Booking Logic (Server Actions)
- * Includes: Validation, Creation, Cancellation, Payment Confirmation.
+ * ACTION: FIXED CRITICAL VALIDATION BUG (136) by comparing client's local time string against expert's schedule.
  */
 
 "use server";
@@ -13,67 +13,81 @@ import Expert from "@/models/Expert";
 import Appointment from "@/models/Appointment";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/lib/nodemailer";
+import { parseISO } from 'date-fns'; 
+import { formatInTimeZone } from 'date-fns-tz'; 
+
+// --- HELPER FUNCTIONS ---
 
 /**
  * @name validateBookingRequest
  * @description Verifies availability, price, and logic before DB writes.
- * Does NOT create a booking. Just checks if it's possible.
+ * @param {Date} fullAppointmentDateTime - The canonical UTC Date object.
+ * @param {string} clientLocalTimeString - The HH:MM string selected by the user. 
+ * @param {number} duration - The duration of the service in minutes.
  */
-export async function validateBookingRequest(expertId, serviceName, type, date, time) {
+async function validateBookingRequest(expertId, serviceName, type, fullAppointmentDateTime, duration, clientLocalTimeString) { // <-- MODIFIED SIGNATURE
   try {
     await connectToDatabase();
-
+    
+    // Day name derived from UTC date object (as per current schema validation flow)
+    const dayName = formatInTimeZone(fullAppointmentDateTime, 'UTC', 'EEEE');
+    
     // 1. Fetch Expert with relevant fields
     const expert = await Expert.findById(expertId).select(
       "name profilePicture services availability leaves specialization"
     );
-
     if (!expert) return { error: "Expert not found." };
 
-    // 2. Validate Service
+    // 2. Validate Service & Price
     const service = expert.services.find((s) => s.name === serviceName);
     if (!service) return { error: "Service not found or no longer offered." };
-
-    // 3. Validate Price/Type availability
+    
     const price = type === "Video Call" ? service.videoPrice : service.clinicPrice;
     if (price === null || price === undefined) return { error: "This appointment type is not available." };
 
-    // 4. Validate Date (Past check)
-    const bookingDate = new Date(date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // 3. Validate Date (Past check) - Compare against current UTC time
+    if (fullAppointmentDateTime < new Date()) return { error: "Cannot book dates/times in the past." };
 
-    if (bookingDate < today) return { error: "Cannot book dates in the past." };
-
-    // 5. Check Leaves
+    // 4. Check Leaves 
     const isOnLeave = expert.leaves.some((leave) => {
       const start = new Date(leave.startDate);
       const end = new Date(leave.endDate);
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
-      return bookingDate >= start && bookingDate <= end;
+      return fullAppointmentDateTime >= start && fullAppointmentDateTime <= end;
     });
 
     if (isOnLeave) return { error: "Expert is on leave during this date." };
 
-    // 6. Check Availability Pattern (Day of Week)
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const dayName = days[bookingDate.getDay()];
-    
-    const isAvailableDay = expert.availability.some((slot) => slot.dayOfWeek === dayName);
-    if (!isAvailableDay) return { error: `${expert.name} is not available on ${dayName}s.` };
+    // 5. Check Availability Pattern (Day of Week & Time Window)
+    const daySlot = expert.availability.find((slot) => slot.dayOfWeek === dayName);
+    if (!daySlot) return { error: `${expert.name} is not available on ${dayName}s.` };
 
-    // 7. Check for Double Booking (Database Query)
+    const [startH, startM] = daySlot.startTime.split(':').map(Number);
+    const [endH, endM] = daySlot.endTime.split(':').map(Number);
+    
+    // USE CLIENT LOCAL TIME STRING FOR COMPARISON (FIX)
+    const [apptH, apptM] = clientLocalTimeString.split(':').map(Number); 
+    
+    const apptTimeInMins = apptH * 60 + apptM;
+    const startTimeInMins = startH * 60 + startM;
+    const endTimeInMins = endH * 60 + endM;
+
+    // Check if appointment start time is within the window AND if the appointment END time is also within the window
+    if (apptTimeInMins < startTimeInMins || (apptTimeInMins + duration) > endTimeInMins) {
+      return { error: "Appointment time is outside the expert's declared window." };
+    }
+    
+    // 6. Check for Double Booking (Database Query)
     const existingBooking = await Appointment.findOne({
-      expertId,
-      appointmentDate: bookingDate,
-      appointmentTime: time,
-      status: { $in: ["confirmed", "pending"] }, // Ignore cancelled
+        expertId,
+        appointmentDate: fullAppointmentDateTime,
+        status: { $in: ["confirmed", "pending"] },
     });
 
-    if (existingBooking) return { error: "This time slot has already been booked." };
+    if (existingBooking) return { error: "This slot was just booked by someone else." };
 
-    // Success: Return safe data for the frontend to use in the next step
+    // Success
     return {
       success: true,
       data: {
@@ -83,8 +97,8 @@ export async function validateBookingRequest(expertId, serviceName, type, date, 
         serviceName: service.name,
         duration: service.duration,
         price: price,
-        date: bookingDate.toISOString(),
-        time: time,
+        fullAppointmentDateTime: fullAppointmentDateTime,
+        time: clientLocalTimeString, // Use client string as reference time
       },
     };
   } catch (error) {
@@ -97,8 +111,6 @@ export async function validateBookingRequest(expertId, serviceName, type, date, 
 
 /**
  * @name createAppointmentAction
- * @description "Confirm & Pay" action called by CheckoutClient.
- * Validates, Creates (Confirmed), Sends Email, and Redirects.
  */
 export async function createAppointmentAction(bookingData) {
   const session = await getServerSession(authOptions);
@@ -106,13 +118,25 @@ export async function createAppointmentAction(bookingData) {
     return { success: false, message: "Authentication failed. Please log in." };
   }
 
-  // 1. Re-Validate (Security: Never trust client input alone)
+  // CRITICAL BUG FIX (Date/Time Serialization)
+  const datePart = bookingData.date;        
+  const timePart = bookingData.time;        
+  const timeZone = bookingData.timezone;    
+
+  // Construct the canonical time string by treating it as UTC for storage
+  const combinedUTCTimeString = `${datePart}T${timePart}:00Z`;
+  
+  // Use parseISO to create the canonical UTC Date object
+  const fullAppointmentDateTime = parseISO(combinedUTCTimeString); 
+  
+  // 1. Re-Validate - PASS LOCAL TIME STRING for comparison
   const validation = await validateBookingRequest(
     bookingData.expertId,
     bookingData.serviceName,
-    bookingData.type, // Note: Client sends 'type', schema expects 'appointmentType'
-    bookingData.date,
-    bookingData.time
+    bookingData.type,
+    fullAppointmentDateTime, 
+    bookingData.duration,
+    bookingData.time // <-- PASS LOCAL HH:MM STRING for validation against expert schedule
   );
 
   if (validation.error) return { success: false, message: validation.error };
@@ -123,13 +147,11 @@ export async function createAppointmentAction(bookingData) {
     await connectToDatabase();
 
     // 2. Create Appointment
-    // In a real app, 'status' would be 'pending' until payment webhook confirms it.
-    // For this demo, we assume payment success immediately.
     const newAppointment = await Appointment.create({
       userId: session.user.id,
       expertId: bookingData.expertId,
-      appointmentDate: data.date,
-      appointmentTime: data.time,
+      appointmentDate: data.fullAppointmentDateTime, 
+      appointmentTime: bookingData.time, 
       
       // Snapshot Data
       serviceName: data.serviceName,
@@ -140,14 +162,13 @@ export async function createAppointmentAction(bookingData) {
       status: "confirmed", 
       paymentStatus: "paid",
       
-      // Generate link if video
       meetingLink: bookingData.type === "Video Call" ? generateMeetingLink() : null,
     });
 
     // 3. Send Confirmation Email (Async - don't block)
-    const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
-      weekday: 'long', month: 'long', day: 'numeric'
-    });
+    // Format the canonical UTC date/time back into the user's selected timezone for email readability
+    const formattedDate = formatInTimeZone(data.fullAppointmentDateTime, timeZone, 'EEEE, d MMMM');
+    const formattedTime = formatInTimeZone(data.fullAppointmentDateTime, timeZone, 'hh:mm a zzzz');
 
     sendEmail({
       to: session.user.email,
@@ -157,9 +178,9 @@ export async function createAppointmentAction(bookingData) {
         expertName: data.expertName,
         serviceName: data.serviceName,
         date: formattedDate,
-        time: data.time,
+        time: formattedTime,
         type: bookingData.type,
-        link: `${process.env.APP_URL}/appointments` // Link to dashboard
+        link: `${process.env.APP_URL}/appointments` 
       },
     });
 
@@ -169,7 +190,6 @@ export async function createAppointmentAction(bookingData) {
 
   } catch (error) {
     console.error("CreateAction Error:", error);
-    // Handle race condition unique index error (MongoDB error code 11000)
     if (error.code === 11000) {
         return { success: false, message: "This slot was just booked by someone else." };
     }
@@ -191,7 +211,6 @@ export async function cancelAppointmentAction({ appointmentId, reason }) {
     await connectToDatabase();
 
     // 1. Find & Verify Ownership
-    // We populate 'expertId' to get the expert's name for the email notification
     const appointment = await Appointment.findOne({
       _id: appointmentId,
       userId: session.user.id, // Security Check: User must own this appt
@@ -239,7 +258,5 @@ export async function cancelAppointmentAction({ appointmentId, reason }) {
 // --- Private Helpers ---
 
 function generateMeetingLink() {
-  // In production, call Zoom/Agora API. 
-  // Here we use our internal video route.
   return `${process.env.APP_URL}/video-call/${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }

@@ -1,11 +1,7 @@
 /*
  * File: src/components/video/Whiteboard.js
  * SR-DEV: Collaborative Whiteboard Component
- * Features:
- * - Real-time drawing sync via Socket.io
- * - Image state sync for new joiners
- * - Floating toolbar (Colors, Eraser, Clear)
- * - Responsive canvas resizing
+ * ACTION: ADDED handleCaptureDataURL function for parent component access via ref.
  */
 
 "use client";
@@ -22,8 +18,29 @@ const COLORS = [
   { id: "green", hex: "#22c55e" },
 ];
 
-export default function Whiteboard({ socket, roomId }) {
-  const canvasRef = useRef(null);
+// Helper function to capture image data URL with white background
+const captureCanvasDataURL = (canvas) => {
+    if (!canvas) return null;
+    
+    // Create a temporary canvas
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext("2d");
+    
+    // Fill background with white (since main canvas is transparent by default)
+    tempCtx.fillStyle = "#ffffff";
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    
+    // Draw existing content from the main canvas
+    tempCtx.drawImage(canvas, 0, 0);
+
+    return tempCanvas.toDataURL('image/png');
+};
+
+
+export default function Whiteboard({ socket, roomId, canvasRef }) {
+  const localCanvasRef = useRef(null); 
   const containerRef = useRef(null);
   const [activeColor, setActiveColor] = useState("#000000");
   const [isEraser, setIsEraser] = useState(false);
@@ -33,13 +50,24 @@ export default function Whiteboard({ socket, roomId }) {
   const lastX = useRef(0);
   const lastY = useRef(0);
 
+  // Expose the capture function to the parent component via the ref prop
+  useEffect(() => {
+    if (canvasRef) {
+      canvasRef.current = {
+        getWhiteboardDataURL: () => captureCanvasDataURL(localCanvasRef.current),
+        element: localCanvasRef.current
+      };
+    }
+  }, [canvasRef, localCanvasRef.current]); 
+
+
   // --- 1. Socket Event Listeners ---
   useEffect(() => {
     if (!socket) return;
 
     // Handle incoming draw events
     const onDraw = ({ x0, y0, x1, y1, color, width }) => {
-      const canvas = canvasRef.current;
+      const canvas = localCanvasRef.current;
       if (!canvas) return;
       drawLine(
         x0 * canvas.width, 
@@ -54,28 +82,31 @@ export default function Whiteboard({ socket, roomId }) {
 
     // Handle clear board
     const onClear = () => {
-      const canvas = canvasRef.current;
+      const canvas = localCanvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     };
 
     // Handle state sync request (New user joined)
     const onRequestState = ({ requesterId }) => {
-      const canvas = canvasRef.current;
+      const canvas = localCanvasRef.current;
       if (!canvas) return;
       // Send current canvas as image data URL
-      const image = canvas.toDataURL();
+      const image = captureCanvasDataURL(canvas);
       socket.emit("wb-send-state", { roomId, image, requesterId });
     };
 
     // Handle state update (I am the new user)
     const onUpdateState = ({ image }) => {
-      const canvas = canvasRef.current;
+      const canvas = localCanvasRef.current;
       if (!canvas) return;
       const img = new Image();
       img.onload = () => {
         const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height); 
         ctx.drawImage(img, 0, 0);
       };
       img.src = image;
@@ -95,11 +126,11 @@ export default function Whiteboard({ socket, roomId }) {
       socket.off("wb-request-state", onRequestState);
       socket.off("wb-update-state", onUpdateState);
     };
-  }, [socket, roomId]);
+  }, [socket, roomId, canvasRef]); 
 
   // --- 2. Resize Logic ---
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = localCanvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
 
@@ -117,6 +148,10 @@ export default function Whiteboard({ socket, roomId }) {
 
       // Restore content (scaled)
       const ctx = canvas.getContext("2d");
+      // Set white background initially
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
       ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
       
       // Set defaults again as context resets on resize
@@ -127,13 +162,16 @@ export default function Whiteboard({ socket, roomId }) {
     const observer = new ResizeObserver(resize);
     observer.observe(container);
     
+    // Initial resize call
+    resize(); 
+
     return () => observer.disconnect();
   }, []);
 
   // --- 3. Drawing Helpers ---
   
   const drawLine = (x0, y0, x1, y1, color, width, emit = true) => {
-    const canvas = canvasRef.current;
+    const canvas = localCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
@@ -162,12 +200,11 @@ export default function Whiteboard({ socket, roomId }) {
   };
 
   const startDrawing = (e) => {
-    const canvas = canvasRef.current;
+    const canvas = localCanvasRef.current;
     if (!canvas) return;
     
     isDrawing.current = true;
     
-    // Handle both mouse and touch events
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     
@@ -178,9 +215,9 @@ export default function Whiteboard({ socket, roomId }) {
 
   const draw = (e) => {
     if (!isDrawing.current) return;
-    e.preventDefault(); // Prevent scrolling on touch
+    e.preventDefault(); 
 
-    const canvas = canvasRef.current;
+    const canvas = localCanvasRef.current;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     
@@ -207,19 +244,22 @@ export default function Whiteboard({ socket, roomId }) {
   };
 
   const handleClear = () => {
-    const canvas = canvasRef.current;
+    const canvas = localCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
     if (socket) socket.emit("wb-clear", roomId);
   };
 
   const handleDownload = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const dataURL = captureCanvasDataURL(localCanvasRef.current);
+    if (!dataURL) return;
     const link = document.createElement("a");
-    link.download = `whiteboard-${Date.now()}.png`;
-    link.href = canvas.toDataURL();
+    link.download = `mind-namo-whiteboard-${Date.now()}.png`;
+    link.href = dataURL;
     link.click();
   };
 
@@ -227,7 +267,7 @@ export default function Whiteboard({ socket, roomId }) {
     <div ref={containerRef} className="relative w-full h-full bg-white rounded-lg overflow-hidden shadow-inner cursor-crosshair">
       
       <canvas
-        ref={canvasRef}
+        ref={localCanvasRef}
         className="block touch-none"
         onMouseDown={startDrawing}
         onMouseMove={draw}
@@ -239,7 +279,7 @@ export default function Whiteboard({ socket, roomId }) {
       />
 
       {/* Floating Toolbar */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-lg rounded-full p-2 flex items-center gap-2">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-lg rounded-full p-2 flex items-center gap-2 z-30">
         
         {/* Colors */}
         <div className="flex gap-1 pr-2 border-r border-zinc-200 dark:border-zinc-700">
@@ -259,6 +299,16 @@ export default function Whiteboard({ socket, roomId }) {
 
         {/* Tools */}
         <Button 
+          variant={!isEraser && activeColor === "#000000" ? "secondary" : "ghost"}
+          size="icon" 
+          className="h-8 w-8 rounded-full"
+          onClick={() => { setActiveColor("#000000"); setIsEraser(false); }}
+          title="Pen Tool"
+        >
+          <Pen className="w-4 h-4" />
+        </Button>
+
+        <Button 
           variant={isEraser ? "secondary" : "ghost"} 
           size="icon" 
           className="h-8 w-8 rounded-full"
@@ -271,7 +321,7 @@ export default function Whiteboard({ socket, roomId }) {
         <Button 
           variant="ghost" 
           size="icon" 
-          className="h-8 w-8 rounded-full text-red-600 hover:text-red-700 hover:bg-red-50"
+          className="h-8 w-8 rounded-full text-red-600 hover:text-red-700 hover:bg-red-50/50"
           onClick={handleClear}
           title="Clear Board"
         >

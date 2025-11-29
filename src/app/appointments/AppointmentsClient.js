@@ -1,6 +1,7 @@
 /*
  * File: src/app/appointments/AppointmentsClient.js
  * SR-DEV: Appointments Client (Tabs & Cancellation Logic)
+ * ACTION: REMOVED count display from tab headers (114).
  */
 
 "use client";
@@ -106,7 +107,8 @@ export default function AppointmentsClient({ allAppointments }) {
                   : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400"
               )}
             >
-              Open Appointments ({upcoming.length})
+              Open Appointments 
+              {/* REMOVED: ({upcoming.length}) */}
             </button>
             <button
               onClick={() => setActiveTab("past")}
@@ -117,7 +119,8 @@ export default function AppointmentsClient({ allAppointments }) {
                   : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400"
               )}
             >
-              History & Cancelled ({past.length})
+              History & Cancelled 
+              {/* REMOVED: ({past.length}) */}
             </button>
          </div>
       </div>

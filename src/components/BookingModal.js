@@ -1,10 +1,7 @@
 /*
  * File: src/components/BookingModal.js
  * SR-DEV: 3-Step Booking Wizard
- * Features:
- * - Smart Slot Generation based on duration & availability.
- * - Custom Mini Calendar with date-fns.
- * - Service & Type selection logic.
+ * ACTION: FIXED Date Serialization Bug & Removed Platform Fee (137).
  */
 
 "use client";
@@ -21,14 +18,15 @@ import {
   eachDayOfInterval, 
   isSameMonth, 
   isSameDay, 
-  addDays, 
   isBefore, 
   startOfToday,
-  parse
+  parse,
+  isToday
 } from "date-fns";
 import { Button } from "@/components/ui/button";
 import ProfileImage from "@/components/ProfileImage";
 import { cn } from "@/lib/utils";
+import TimezoneSelect from "@/components/TimezoneSelect";
 
 // --- ICONS ---
 import { 
@@ -60,6 +58,12 @@ const generateTimeSlots = (availability, selectedDate, duration) => {
     while (true) {
       const nextSlot = new Date(current.getTime() + duration * 60000);
       if (nextSlot > end) break;
+
+      // Filter out slots that are in the past today
+      if (isToday(selectedDate) && current <= new Date()) {
+          current = nextSlot;
+          continue;
+      }
 
       slots.push(format(current, 'HH:mm'));
       current = nextSlot;
@@ -168,6 +172,7 @@ export default function BookingModal({ expert, onClose }) {
   // Step 2 Data
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
+  const [selectedTimezone, setSelectedTimezone] = useState(null);
   const [slots, setSlots] = useState([]);
 
   // Initialize default service (lowest price logic)
@@ -195,20 +200,24 @@ export default function BookingModal({ expert, onClose }) {
     }
   }, [selectedDate, selectedService, expert.availability]);
 
-  // SR-DEV: Added the missing handler function here
+  // Handler for MiniCalendar
   const handleDateSelect = (date) => {
     setSelectedDate(date);
   };
 
   const handleNext = () => {
     if (step === 1 && selectedService && appointmentType) setStep(2);
-    else if (step === 2 && selectedDate && selectedTime) setStep(3);
+    // UPDATED STEP 2 CHECK: Requires selectedTime and selectedTimezone
+    else if (step === 2 && selectedDate && selectedTime && selectedTimezone) setStep(3);
     else if (step === 3) handleConfirm();
   };
 
   const handleConfirm = () => {
     const price = appointmentType === "Video Call" ? selectedService.videoPrice : selectedService.clinicPrice;
     
+    // CRITICAL FIX: Pass date as ISO string (with date component only)
+    const dateOnlyISO = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
+
     const params = new URLSearchParams({
       expertId: expert._id,
       expertName: expert.name,
@@ -217,8 +226,9 @@ export default function BookingModal({ expert, onClose }) {
       type: appointmentType,
       duration: selectedService.duration,
       price: price,
-      date: selectedDate.toISOString(),
-      time: selectedTime
+      date: dateOnlyISO, // Pass clean date string
+      time: selectedTime,
+      timezone: selectedTimezone,
     });
     
     router.push(`/checkout?${params.toString()}`);
@@ -253,11 +263,10 @@ export default function BookingModal({ expert, onClose }) {
         <div className="flex-1 overflow-y-auto">
           <div className="p-6">
             
-            {/* STEP 1: Service & Type */}
+            {/* STEP 1: Service & Type (Unchanged) */}
             {step === 1 && (
               <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
                 
-                {/* Service List */}
                 <div className="space-y-3">
                   <label className="text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">1. Select Service</label>
                   <div className="grid gap-3">
@@ -266,7 +275,6 @@ export default function BookingModal({ expert, onClose }) {
                         key={s.name}
                         onClick={() => {
                           setSelectedService(s);
-                          // Reset type if current type invalid for new service
                           if (appointmentType === "Video Call" && s.videoPrice == null) setAppointmentType("Clinic Visit");
                           if (appointmentType === "Clinic Visit" && s.clinicPrice == null) setAppointmentType("Video Call");
                         }}
@@ -291,7 +299,6 @@ export default function BookingModal({ expert, onClose }) {
                   </div>
                 </div>
 
-                {/* Type Selection */}
                 {selectedService && (
                   <div className="space-y-3">
                     <label className="text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">2. Select Type</label>
@@ -349,7 +356,11 @@ export default function BookingModal({ expert, onClose }) {
                    />
                 </div>
 
-                <div className="flex flex-col h-full">
+                <div className="flex flex-col h-full space-y-6">
+                   
+                   {/* Timezone Select */}
+                   <TimezoneSelect onSelect={setSelectedTimezone} />
+
                    <label className="text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider mb-3">Select Time</label>
                    
                    {!selectedDate ? (
@@ -384,11 +395,11 @@ export default function BookingModal({ expert, onClose }) {
               </div>
             )}
 
-            {/* STEP 3: Confirm */}
+            {/* STEP 3: Confirm (Removed Platform Fee) */}
             {step === 3 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-right-4 duration-300">
                 
-                {/* Summary Card */}
+                {/* Summary Card (Unchanged) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-4 p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800">
                       <ProfileImage src={expert.profilePicture} name={expert.name} sizeClass="w-14 h-14" className="rounded-lg" />
@@ -427,23 +438,25 @@ export default function BookingModal({ expert, onClose }) {
                             <p className="font-medium text-zinc-900 dark:text-zinc-100">
                               {format(selectedDate, 'EEEE, d MMMM')} at {selectedTime}
                             </p>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                               Timezone: {selectedTimezone}
+                            </p>
                          </div>
                       </div>
                    </div>
                 </div>
 
-                {/* Price Breakdown */}
+                {/* Price Breakdown (Removed Platform Fee) */}
                 <div className="flex flex-col justify-center">
                    <div className="p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg">
                       <h3 className="font-bold text-lg mb-4 border-b border-zinc-100 dark:border-zinc-800 pb-4">Payment Summary</h3>
-                      <div className="flex justify-between items-center mb-2 text-sm">
+                      <div className="flex justify-between items-center mb-6 text-sm">
                          <span className="text-zinc-500">{selectedService.name}</span>
                          <span className="font-medium">₹{appointmentType === "Video Call" ? selectedService.videoPrice : selectedService.clinicPrice}</span>
                       </div>
-                      <div className="flex justify-between items-center mb-6 text-sm">
-                         <span className="text-zinc-500">Platform Fee</span>
-                         <span className="font-medium">₹0</span>
-                      </div>
+                      
+                      {/* PLATFORM FEE REMOVED */}
+                      
                       <div className="flex justify-between items-center pt-4 border-t border-zinc-100 dark:border-zinc-800">
                          <span className="font-bold text-lg">Total</span>
                          <span className="font-bold text-2xl text-zinc-900 dark:text-white">
@@ -459,7 +472,7 @@ export default function BookingModal({ expert, onClose }) {
           </div>
         </div>
 
-        {/* Footer Actions */}
+        {/* Footer Actions (Unchanged) */}
         <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex justify-between items-center">
           {step > 1 ? (
             <Button variant="ghost" onClick={() => setStep(step - 1)} className="gap-2">
@@ -474,7 +487,7 @@ export default function BookingModal({ expert, onClose }) {
             onClick={handleNext} 
             disabled={
               (step === 1 && (!selectedService || !appointmentType)) ||
-              (step === 2 && (!selectedDate || !selectedTime))
+              (step === 2 && (!selectedDate || !selectedTime || !selectedTimezone))
             }
             className={cn(
               "min-w-[140px] shadow-lg transition-all",

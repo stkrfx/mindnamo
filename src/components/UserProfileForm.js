@@ -1,10 +1,7 @@
 /*
  * File: src/components/UserProfileForm.js
  * SR-DEV: Interactive User Profile Form
- * Features:
- * - Image Upload with Preview (UploadThing)
- * - Zod Validation via React Hook Form
- * - Notification Preferences
+ * ACTION: ADDED useSessionUpdater (File 103) to sync profile changes to the Header.
  */
 
 "use client";
@@ -15,6 +12,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { updateUserAction } from "@/actions/user";
 import { useUploadThing } from "@/lib/uploadthing";
+import { useSessionUpdater } from "@/lib/session"; // **NEW IMPORT**
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +35,7 @@ const profileSchema = z.object({
 });
 
 export default function UserProfileForm({ user }) {
+  const updateSession = useSessionUpdater(); // **NEW HOOK**
   const [isPending, startTransition] = useTransition();
   const [previewImage, setPreviewImage] = useState(user.profilePicture || "");
   const fileInputRef = useRef(null);
@@ -64,7 +63,7 @@ export default function UserProfileForm({ user }) {
       if (res && res[0]) {
         const newUrl = res[0].url;
         setPreviewImage(newUrl);
-        setValue("profilePicture", newUrl, { shouldDirty: true });
+        setValue("profilePicture", newUrl, { shouldDirty: true, shouldValidate: true });
         toast.success("Image uploaded successfully");
       }
     },
@@ -101,7 +100,11 @@ export default function UserProfileForm({ user }) {
         toast.success("Profile Updated", {
           description: "Your changes have been saved successfully.",
         });
-        // Reset form state implicitly by re-rendering or keep as is
+        
+        // **CRITICAL SYNCHRONIZATION STEP**
+        // Update the NextAuth session to reflect the new name and image instantly.
+        await updateSession({ name: data.name, profilePicture: data.profilePicture });
+
       } else {
         toast.error("Update Failed", {
           description: result.message,

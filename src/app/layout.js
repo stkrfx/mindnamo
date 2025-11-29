@@ -1,5 +1,11 @@
+/*
+ * File: src/app/layout.js
+ * SR-DEV: Root layout, fonts, metadata.
+ * ACTION: FIXED Missing <body> tag error (Error 1) by placing ThemeContextWrapper inside <body>.
+ */
+
 import { Inter } from "next/font/google";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "next-auth/next";
 import "./globals.css";
 
 import AuthProvider from "@/components/AuthProvider";
@@ -7,6 +13,8 @@ import Header from "@/components/Header";
 import FooterWrapper from "@/components/FooterWrapper";
 import { Toaster } from "@/components/ui/sonner";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+
+import ThemeContextWrapper from "@/components/ThemeContextWrapper"; // File 124
 
 const inter = Inter({ 
   subsets: ["latin"], 
@@ -67,20 +75,21 @@ export default async function RootLayout({ children }) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body className="antialiased bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 min-h-[100dvh] flex flex-col">
-        <AuthProvider session={session}>
-          {/* Header is always present but might hide itself on specific routes */}
-          <Header />
-          
-          <main className="flex-1 flex flex-col relative z-0">
-            {children}
-          </main>
-          
-          {/* FooterWrapper conditionally renders the footer */}
-          <FooterWrapper />
-          
-          {/* Global Toast Notifications */}
-          <Toaster position="top-center" richColors />
-        </AuthProvider>
+        {/* ThemeProvider (Client Component) now wraps the content *inside* body */}
+        <ThemeContextWrapper> 
+          <AuthProvider session={session}>
+            <Header />
+            
+            <main className="flex-1 flex flex-col relative z-0">
+              {children}
+            </main>
+            
+            <FooterWrapper />
+            
+            {/* Global Toast Notifications */}
+            <Toaster position="bottom-right" richColors />
+          </AuthProvider>
+        </ThemeContextWrapper>
       </body>
     </html>
   );

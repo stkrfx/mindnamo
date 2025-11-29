@@ -1,15 +1,67 @@
 /*
  * File: src/components/Footer.js
  * SR-DEV: Premium Footer
+ * ACTION: Integrated Newsletter Signup Logic (File 106) and cleaned up links (File 113).
  */
 
 "use client";
 
 import Link from "next/link";
+import { useState, useTransition } from "react";
 import { MindNamoLogo } from "@/components/Icons";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Twitter, Instagram, Linkedin, Facebook, Mail, MapPin } from "lucide-react";
+import { subscribeToNewsletterAction } from "@/actions/newsletter"; // **NEW IMPORT**
+import { toast } from "sonner";
+import { Loader2, Twitter, Instagram, Linkedin, Facebook, Mail, MapPin } from "lucide-react";
+
+function NewsletterForm() {
+  const [email, setEmail] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!email) return;
+
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.append("email", email);
+
+      const result = await subscribeToNewsletterAction(formData);
+
+      if (result.success) {
+        toast.success("Subscribed!", {
+          description: result.message,
+        });
+        setEmail("");
+      } else {
+        toast.error("Failed to Subscribe", {
+          description: result.message,
+        });
+      }
+    });
+  };
+
+  return (
+    <form className="flex flex-col sm:flex-row gap-3" onSubmit={handleSubmit}>
+      <Input 
+        placeholder="Enter your email" 
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        disabled={isPending}
+        className="bg-zinc-900 border-zinc-800 text-white h-11 focus-visible:ring-zinc-700 placeholder:text-zinc-600" 
+      />
+      <Button 
+        size="lg" 
+        className="h-11 px-8 bg-white text-zinc-950 hover:bg-zinc-200 font-semibold"
+        disabled={isPending}
+      >
+        {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Subscribe"}
+      </Button>
+    </form>
+  );
+}
 
 export default function Footer() {
   return (
@@ -44,32 +96,25 @@ export default function Footer() {
              <p className="text-zinc-400 text-sm mb-5">
                Get weekly wellness tips and platform updates directly to your inbox.
              </p>
-             <form className="flex flex-col sm:flex-row gap-3" onSubmit={(e) => e.preventDefault()}>
-               <Input 
-                 placeholder="Enter your email" 
-                 className="bg-zinc-900 border-zinc-800 text-white h-11 focus-visible:ring-zinc-700 placeholder:text-zinc-600" 
-               />
-               <Button size="lg" className="h-11 px-8 bg-white text-zinc-950 hover:bg-zinc-200 font-semibold">
-                 Subscribe
-               </Button>
-             </form>
+             <NewsletterForm />
           </div>
         </div>
 
         {/* --- Middle Section: Navigation Links --- */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
            
-           {/* Column 1 */}
+           {/* Column 1: Platform */}
            <div className="space-y-4">
-              <h4 className="font-bold text-white">Company</h4>
+              <h4 className="font-bold text-white">Platform</h4>
               <ul className="space-y-3 text-sm text-zinc-400">
                 <li><Link href="/" className="hover:text-white transition-colors">Home</Link></li>
-                <li><Link href="/experts" className="hover:text-white transition-colors">Find Experts</Link></li>
-                <li><Link href="/about" className="hover:text-white transition-colors">About Us</Link></li>
+                <li><Link href="/experts" className="hover:text-white transition-colors">Experts</Link></li>
+                <li><Link href="/organizations" className="hover:text-white transition-colors">Organizations</Link></li>
+                {/* Removed: About Us (404 link) */}
               </ul>
            </div>
 
-           {/* Column 2 */}
+           {/* Column 2: Support */}
            <div className="space-y-4">
               <h4 className="font-bold text-white">Support</h4>
               <ul className="space-y-3 text-sm text-zinc-400">

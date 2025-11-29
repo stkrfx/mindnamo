@@ -1,6 +1,7 @@
 /*
  * File: src/components/Header.js
- * SR-DEV: Premium Header (Mobile Fixes + Enhanced Menu)
+ * SR-DEV: Premium Header (Full Refactor)
+ * ACTION: Re-added "Give Feedback" link to the profile dropdown (144).
  */
 
 "use client";
@@ -23,7 +24,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import ProfileImage from "@/components/ProfileImage";
-import { MindNamoLogo } from "@/components/Icons";
+import DarkModeToggle from "@/components/DarkModeToggle"; 
+import { MindNamoLogo, BuildingIcon } from "@/components/Icons"; 
+import UnreadChatIndicator from "@/components/UnreadChatIndicator"; 
 
 // --- Icons ---
 import { 
@@ -31,9 +34,11 @@ import {
   Home, Search, LifeBuoy, MessageCircle 
 } from "lucide-react";
 
+// UPDATED NAVIGATION LINKS
 const NAV_LINKS = [
   { name: "Home", href: "/", icon: Home },
-  { name: "Find Experts", href: "/experts", icon: Search },
+  { name: "Experts", href: "/experts", icon: Search }, 
+  { name: "Organizations", href: "/organizations", icon: BuildingIcon }, 
   { name: "My Appointments", href: "/appointments", icon: Calendar },
 ];
 
@@ -45,7 +50,10 @@ export default function Header() {
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   
-  // Routes where header should be hidden (e.g. Auth pages often have their own headers)
+  // NOTE: hasUnreadMessages is now managed by the UnreadChatIndicator component for desktop.
+  const hasUnreadMessages = false; // Placeholder until actual subscription is done across the whole app
+
+  // Routes where header should be hidden
   const hideHeaderRoutes = ["/login", "/register", "/forgot-password", "/reset-password", "/otp"];
   const shouldHide = hideHeaderRoutes.includes(pathname);
 
@@ -84,7 +92,7 @@ export default function Header() {
   const getLinkClass = (href) =>
     cn(
       "relative text-sm font-medium transition-colors hover:text-primary",
-      pathname === href ? "text-foreground font-bold" : "text-muted-foreground"
+      pathname.startsWith(href) && href !== "/" ? "text-foreground font-bold" : (pathname === href && href === "/") ? "text-foreground font-bold" : "text-muted-foreground"
     );
 
   return (
@@ -140,7 +148,13 @@ export default function Header() {
                      <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Menu</p>
                      {NAV_LINKS.map((link) => (
                        <SheetClose asChild key={link.href}>
-                         <Link href={link.href} className={cn("flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors", pathname === link.href ? "bg-zinc-100 dark:bg-zinc-800 text-foreground" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground")}>
+                         <Link 
+                            href={link.href} 
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors", 
+                              pathname.startsWith(link.href) ? "bg-zinc-100 dark:bg-zinc-800 text-foreground" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground"
+                            )}
+                         >
                            <link.icon className="h-5 w-5" />
                            {link.name}
                          </Link>
@@ -148,16 +162,33 @@ export default function Header() {
                      ))}
                      {user && (
                        <SheetClose asChild>
-                         <Link href="/chat" className={cn("flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors", pathname === "/chat" ? "bg-zinc-100 dark:bg-zinc-800 text-foreground" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground")}>
+                         <Link 
+                            href="/chat" 
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors relative", 
+                              pathname === "/chat" ? "bg-zinc-100 dark:bg-zinc-800 text-foreground" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground"
+                            )}
+                          >
                            <MessageSquare className="h-5 w-5" />
                            Messages
+                           {/* Using simple placeholder logic for mobile sheet menu */}
+                           {hasUnreadMessages && <span className="absolute top-3.5 right-5 h-2 w-2 rounded-full bg-red-500" />}
                          </Link>
                        </SheetClose>
                      )}
                   </div>
 
+                  <div className="flex flex-col gap-1 mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-800">
+                    <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Settings</p>
+                    {/* Dark Mode Toggle for Mobile */}
+                    <div className="flex items-center justify-between px-4 py-2">
+                       <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Dark Mode</span>
+                       <DarkModeToggle className="text-zinc-600 dark:text-zinc-400" />
+                    </div>
+                  </div>
+
                   {user && (
-                    <div className="flex flex-col gap-1 mt-6">
+                    <div className="flex flex-col gap-1 mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-800">
                        <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Account</p>
                        <SheetClose asChild>
                          <Link href="/profile" className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground transition-colors">
@@ -169,6 +200,7 @@ export default function Header() {
                             <LifeBuoy className="h-5 w-5" /> Help & Support
                          </Link>
                        </SheetClose>
+                       {/* Re-added Give Feedback link */}
                        <SheetClose asChild>
                          <Link href="/feedback" className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground transition-colors">
                             <MessageCircle className="h-5 w-5" /> Give Feedback
@@ -220,16 +252,17 @@ export default function Header() {
           </nav>
 
           {/* --- RIGHT: User Actions --- */}
-          <div className="flex items-center justify-end gap-4 min-w-[140px]">
+          <div className="flex items-center justify-end gap-3 min-w-[140px]">
+            
+            {/* Dark Mode Toggle (Desktop) */}
+            <DarkModeToggle className="hidden md:inline-flex" />
+
             {status === "loading" ? (
                <div className="h-9 w-24 bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse" />
             ) : user ? (
               <div className="flex items-center gap-3">
-                 <Link href="/chat">
-                   <Button variant="ghost" size="icon" className="hidden md:flex text-muted-foreground hover:text-primary relative" title="Messages">
-                      <MessageSquare className="h-5 w-5" />
-                   </Button>
-                 </Link>
+                 {/* Desktop Chat Indicator (Real-time component) */}
+                 <UnreadChatIndicator />
 
                  <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
@@ -274,9 +307,6 @@ export default function Header() {
                           <MessageCircle className="mr-3 h-4 w-4" /> Give Feedback
                       </Link>
                     </DropdownMenuItem>
-                    
-                    <DropdownMenuSeparator />
-                    
                     <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 cursor-pointer w-full flex items-center py-2.5">
                       <LogOut className="mr-3 h-4 w-4" /> Log out
                     </DropdownMenuItem>

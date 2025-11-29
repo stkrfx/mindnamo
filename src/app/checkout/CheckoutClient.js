@@ -1,7 +1,7 @@
 /*
  * File: src/app/checkout/CheckoutClient.js
  * SR-DEV: Client-Side Checkout Logic
- * Handles auth protection, URL param parsing, and final booking submission.
+ * ACTION: REMOVED Platform Fee display (140) and simplified price summary.
  */
 
 "use client";
@@ -50,27 +50,26 @@ export default function CheckoutClient() {
     expertImage: searchParams.get("expertImage"),
     serviceName: searchParams.get("serviceName"),
     type: searchParams.get("type"),
-    date: searchParams.get("date") ? new Date(searchParams.get("date")) : null,
+    date: searchParams.get("date"), // YYYY-MM-DD
     time: searchParams.get("time"),
     duration: searchParams.get("duration"),
     price: searchParams.get("price"),
+    timezone: searchParams.get("timezone"),
   };
   
-  // 2. Format Date
-  const displayDate = bookingData.date?.toLocaleDateString('en-US', {
+  // 2. Format Date (Uses date string from URL for display consistency)
+  const displayDate = bookingData.date ? new Date(bookingData.date).toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
     year: 'numeric'
-  });
+  }) : 'N/A';
 
   // 3. Submission Handler
   const handleConfirmAndPay = () => {
     setError("");
     startTransition(async () => {
-      // In a real app, integrate Stripe/Razorpay here.
-      // For this scope, we assume immediate success.
-      
+      // Data passed to server is validated there.
       const result = await createAppointmentAction(bookingData);
       
       if (result.success) {
@@ -97,7 +96,7 @@ export default function CheckoutClient() {
           onClick={() => router.back()}
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Profile
+          Back to Booking
         </Button>
       </div>
 
@@ -144,7 +143,7 @@ export default function CheckoutClient() {
                     <div>
                        <p className="text-xs text-zinc-500 mb-0.5">Date & Time</p>
                        <p className="font-medium text-zinc-900 dark:text-zinc-100">{displayDate}</p>
-                       <p className="text-xs text-zinc-500 mt-0.5">at {bookingData.time}</p>
+                       <p className="text-xs text-zinc-500 mt-0.5">at {bookingData.time} ({bookingData.timezone})</p>
                     </div>
                  </div>
 
@@ -176,10 +175,12 @@ export default function CheckoutClient() {
                        <span className="text-zinc-500">Consultation Fee</span>
                        <span className="font-medium">₹{bookingData.price}</span>
                     </div>
+                    {/* PLATFORM FEE REMOVED (140) */}
                     <div className="flex justify-between text-sm">
                        <span className="text-zinc-500">Platform Fee</span>
-                       <span className="font-medium text-green-600">Free</span>
+                       <span className="font-medium text-green-600">₹0</span>
                     </div>
+
                     <div className="h-px w-full bg-zinc-100 dark:bg-zinc-800 my-2" />
                     
                     <Button 

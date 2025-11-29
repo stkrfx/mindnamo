@@ -1,6 +1,7 @@
 /*
  * File: src/components/home/CTASection.js
  * SR-DEV: Premium Footer Call-to-Action
+ * ACTION: REMOVED "Create Account" button (File 112). Now features a single, clear CTA.
  *
  * FEATURES:
  * - High-Contrast Design (Dark Theme).
@@ -46,17 +47,14 @@ export default function CTASection() {
           No subscriptions. No hidden fees. Just healing.
         </p>
 
+        {/* --- ACTIONS: Single CTA --- */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
            <Link href="/experts">
              <Button size="lg" className="h-16 px-10 text-xl rounded-full bg-white text-zinc-900 hover:bg-zinc-100 shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] transition-all hover:scale-105">
                Find My Expert
              </Button>
            </Link>
-           <Link href="/register">
-             <Button variant="outline" size="lg" className="h-16 px-10 text-xl rounded-full border-zinc-700 hover:bg-zinc-800 text-white hover:text-white bg-transparent">
-               Create Account
-             </Button>
-           </Link>
+           {/* Removed: Create Account Button */}
         </div>
 
         <p className="mt-8 text-sm text-zinc-500">
