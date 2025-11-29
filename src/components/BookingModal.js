@@ -195,6 +195,11 @@ export default function BookingModal({ expert, onClose }) {
     }
   }, [selectedDate, selectedService, expert.availability]);
 
+  // SR-DEV: Added the missing handler function here
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+  };
+
   const handleNext = () => {
     if (step === 1 && selectedService && appointmentType) setStep(2);
     else if (step === 2 && selectedDate && selectedTime) setStep(3);
