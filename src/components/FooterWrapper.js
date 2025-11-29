@@ -1,6 +1,7 @@
 /*
  * File: src/components/FooterWrapper.js
  * SR-DEV: Conditional Footer Renderer
+ * ACTION: Hides footer on '/experts' (search) but keeps it on '/experts/[id]' (profile).
  */
 
 "use client";
@@ -11,10 +12,9 @@ import Footer from "@/components/Footer";
 export default function FooterWrapper() {
   const pathname = usePathname();
 
-  // Routes where the footer should be HIDDEN
-  // We hide it on Auth pages to reduce distraction
-  // We hide it on Chat/Video pages to maximize screen real estate
-  const hideFooterRoutes = [
+  // 1. Prefix Matches: Hide footer on these paths AND their sub-paths
+  // (e.g. /video-call/123, /chat/abc)
+  const hideFooterPrefixes = [
     "/login",
     "/register",
     "/forgot-password",
@@ -24,9 +24,16 @@ export default function FooterWrapper() {
     "/video-call", 
   ];
 
-  // Check if current path starts with any of the hidden routes
-  // Using startsWith allows us to match dynamic routes like /video-call/123
-  const shouldHide = hideFooterRoutes.some((route) => pathname?.startsWith(route));
+  // 2. Exact Matches: Hide footer ONLY on these specific paths
+  // (e.g. Hide on the search list '/experts', but SHOW on profile '/experts/123')
+  const hideFooterExact = [
+    "/experts",
+  ];
+
+  // Check both conditions
+  const shouldHide = 
+    hideFooterPrefixes.some((route) => pathname?.startsWith(route)) ||
+    hideFooterExact.includes(pathname);
 
   if (shouldHide) return null;
 

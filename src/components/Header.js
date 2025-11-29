@@ -1,15 +1,19 @@
 /*
  * File: src/components/Header.js
- * SR-DEV: Premium Header (Full Refactor)
- * ACTION: Re-added "Give Feedback" link to the profile dropdown (144).
+ * SR-DEV: Header Refactor (Final Polish)
+ * UPGRADES: 
+ * - Replaced scroll state with useRef for performance.
+ * - Added scroll threshold (10px) to prevent jitter.
+ * - Added top buffer (100px) so header stays visible at top.
  */
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 
 // UI Components
@@ -31,10 +35,9 @@ import UnreadChatIndicator from "@/components/UnreadChatIndicator";
 // --- Icons ---
 import { 
   Menu, User, Calendar, MessageSquare, LogOut, 
-  Home, Search, LifeBuoy, MessageCircle 
+  Home, Search, LifeBuoy, MessageCircle, Moon, Sun 
 } from "lucide-react";
 
-// UPDATED NAVIGATION LINKS
 const NAV_LINKS = [
   { name: "Home", href: "/", icon: Home },
   { name: "Experts", href: "/experts", icon: Search }, 
@@ -44,40 +47,72 @@ const NAV_LINKS = [
 
 export default function Header() {
   const { data: session, status } = useSession();
+  const { theme, setTheme } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
 
   const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   
-  // NOTE: hasUnreadMessages is now managed by the UnreadChatIndicator component for desktop.
-  const hasUnreadMessages = false; // Placeholder until actual subscription is done across the whole app
+  // Use Refs for scroll tracking to avoid re-renders during scroll
+  const lastScrollY = useRef(0);
 
-  // Routes where header should be hidden
+  const hasUnreadMessages = false; 
   const hideHeaderRoutes = ["/login", "/register", "/forgot-password", "/reset-password", "/otp"];
   const shouldHide = hideHeaderRoutes.includes(pathname);
 
-  // --- Smart Scroll Logic ---
+  // --- Industry Standard Smart Scroll Logic ---
   useEffect(() => {
-    const controlNavbar = () => {
-      if (typeof window !== 'undefined') {
-        const currentScrollY = window.scrollY;
-        
-        // Show if scrolling up OR if at very top
-        if (currentScrollY < lastScrollY || currentScrollY < 50) {
-          setIsVisible(true);
-        } 
-        // Hide if scrolling down AND not at top
-        else if (currentScrollY > lastScrollY && currentScrollY > 50) {
-          setIsVisible(false);
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const lastY = lastScrollY.current;
+      
+      // Calculate how much we scrolled
+      const scrollDelta = Math.abs(currentScrollY - lastY);
+      const isScrollingDown = currentScrollY > lastY;
+      const isScrollingUp = currentScrollY < lastY;
+
+      // 1. THRESHOLD: Ignore tiny scrolls (e.g., < 10px) to prevent "jitter"
+      // This solves "hides too fast on a little scroll"
+      if (scrollDelta < 10) {
+        return;
+      }
+
+      // 2. LOGIC
+      if (isScrollingDown) {
+        // Only hide if we are passed the "Top Buffer" (e.g., 100px)
+        // This ensures header stays visible while reading the Hero section
+        if (currentScrollY > 100) {
+           setIsVisible(false);
         }
-        setLastScrollY(currentScrollY);
+        
+        // Close dropdowns if scrolling down
+        if (isProfileOpen) setIsProfileOpen(false);
+      } 
+      else if (isScrollingUp) {
+        // Always show immediately when scrolling up
+        setIsVisible(true);
+      }
+
+      // Update Ref
+      lastScrollY.current = currentScrollY;
+    };
+
+    // Optimization: Throttling using requestAnimationFrame
+    let ticking = false;
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          handleScroll();
+          ticking = false;
+        });
+        ticking = true;
       }
     };
 
-    window.addEventListener('scroll', controlNavbar);
-    return () => window.removeEventListener('scroll', controlNavbar);
-  }, [lastScrollY]);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [isProfileOpen]);
 
   if (shouldHide) return null;
 
@@ -89,17 +124,29 @@ export default function Header() {
     router.refresh();
   };
 
-  const getLinkClass = (href) =>
-    cn(
+  // Helper for active link styles
+  const getLinkClass = (href) => {
+    const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
+    return cn(
       "relative text-sm font-medium transition-colors hover:text-primary",
-      pathname.startsWith(href) && href !== "/" ? "text-foreground font-bold" : (pathname === href && href === "/") ? "text-foreground font-bold" : "text-muted-foreground"
+      isActive ? "text-foreground font-bold" : "text-muted-foreground"
     );
+  };
+
+  const getMobileLinkClass = (href) => {
+    const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
+    return cn(
+      "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors", 
+      isActive ? "bg-zinc-100 dark:bg-zinc-800 text-foreground" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground"
+    );
+  };
 
   return (
     <>
       <header 
         className={cn(
           "fixed top-0 left-0 right-0 z-50 w-full border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 h-16 transition-transform duration-300 ease-in-out",
+          // Apply transform based on visibility state
           isVisible ? "translate-y-0" : "-translate-y-full"
         )}
       >
@@ -108,7 +155,6 @@ export default function Header() {
           {/* --- LEFT: Logo & Mobile Menu --- */}
           <div className="flex items-center justify-start gap-2">
             
-            {/* Mobile Menu Trigger */}
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="md:hidden shrink-0 -ml-2 mr-2">
@@ -121,13 +167,7 @@ export default function Header() {
                 <SheetHeader className="p-6 border-b border-zinc-100 dark:border-zinc-900 text-left">
                   {user ? (
                     <div className="flex items-center gap-4">
-                       <ProfileImage 
-                          src={user.image} 
-                          name={user.name} 
-                          sizeClass="h-12 w-12" 
-                          className="border-2 border-white shadow-sm"
-                          priority
-                       />
+                       <ProfileImage src={user.image} name={user.name} sizeClass="h-12 w-12" className="border-2 border-white shadow-sm" priority />
                        <div className="flex-1 overflow-hidden">
                          <SheetTitle className="font-bold text-lg truncate">{user.name}</SheetTitle>
                          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
@@ -148,13 +188,7 @@ export default function Header() {
                      <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Menu</p>
                      {NAV_LINKS.map((link) => (
                        <SheetClose asChild key={link.href}>
-                         <Link 
-                            href={link.href} 
-                            className={cn(
-                              "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors", 
-                              pathname.startsWith(link.href) ? "bg-zinc-100 dark:bg-zinc-800 text-foreground" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground"
-                            )}
-                         >
+                         <Link href={link.href} className={getMobileLinkClass(link.href)}>
                            <link.icon className="h-5 w-5" />
                            {link.name}
                          </Link>
@@ -162,16 +196,9 @@ export default function Header() {
                      ))}
                      {user && (
                        <SheetClose asChild>
-                         <Link 
-                            href="/chat" 
-                            className={cn(
-                              "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors relative", 
-                              pathname === "/chat" ? "bg-zinc-100 dark:bg-zinc-800 text-foreground" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground"
-                            )}
-                          >
+                         <Link href="/chat" className={getMobileLinkClass("/chat")}>
                            <MessageSquare className="h-5 w-5" />
                            Messages
-                           {/* Using simple placeholder logic for mobile sheet menu */}
                            {hasUnreadMessages && <span className="absolute top-3.5 right-5 h-2 w-2 rounded-full bg-red-500" />}
                          </Link>
                        </SheetClose>
@@ -180,11 +207,16 @@ export default function Header() {
 
                   <div className="flex flex-col gap-1 mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-800">
                     <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Settings</p>
-                    {/* Dark Mode Toggle for Mobile */}
-                    <div className="flex items-center justify-between px-4 py-2">
-                       <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Dark Mode</span>
-                       <DarkModeToggle className="text-zinc-600 dark:text-zinc-400" />
-                    </div>
+                    <button 
+                      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground transition-colors w-full text-left"
+                    >
+                       <div className="relative h-5 w-5">
+                          <Sun className="absolute h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                          <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                       </div>
+                       <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                    </button>
                   </div>
 
                   {user && (
@@ -200,7 +232,6 @@ export default function Header() {
                             <LifeBuoy className="h-5 w-5" /> Help & Support
                          </Link>
                        </SheetClose>
-                       {/* Re-added Give Feedback link */}
                        <SheetClose asChild>
                          <Link href="/feedback" className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-foreground transition-colors">
                             <MessageCircle className="h-5 w-5" /> Give Feedback
@@ -235,7 +266,6 @@ export default function Header() {
               </SheetContent>
             </Sheet>
             
-            {/* Logo */}
             <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight shrink-0">
               <MindNamoLogo className="h-6 w-6 text-primary" />
               <span className="inline-block">Mind Namo</span>
@@ -253,18 +283,15 @@ export default function Header() {
 
           {/* --- RIGHT: User Actions --- */}
           <div className="flex items-center justify-end gap-3 min-w-[140px]">
-            
-            {/* Dark Mode Toggle (Desktop) */}
             <DarkModeToggle className="hidden md:inline-flex" />
 
             {status === "loading" ? (
                <div className="h-9 w-24 bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse" />
             ) : user ? (
               <div className="flex items-center gap-3">
-                 {/* Desktop Chat Indicator (Real-time component) */}
                  <UnreadChatIndicator />
 
-                 <DropdownMenu modal={false}>
+                 <DropdownMenu modal={false} open={isProfileOpen} onOpenChange={setIsProfileOpen}>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0 border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-primary">
                       <ProfileImage 
@@ -328,7 +355,7 @@ export default function Header() {
         </div>
       </header>
       
-      {/* Spacer to prevent content from hiding behind fixed header */}
+      {/* Spacer */}
       <div className="h-16 w-full" aria-hidden="true" />
     </>
   );

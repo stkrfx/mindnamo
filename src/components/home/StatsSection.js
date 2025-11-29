@@ -1,11 +1,7 @@
 /*
  * File: src/components/home/StatsSection.js
  * SR-DEV: Premium Stats Display
- *
- * FEATURES:
- * - Gradient Typography for high visual impact.
- * - Floating Card layout.
- * - Subtle background doodles.
+ * FIX: Reduced vertical padding on mobile (py-12) for better density.
  */
 
 "use client";
@@ -19,7 +15,8 @@ export default function StatsSection() {
   ];
 
   return (
-    <section className="py-20 bg-zinc-50 dark:bg-zinc-950 relative overflow-hidden">
+    // FIX: Changed 'py-20' to 'py-12 md:py-20'
+    <section className="py-8 md:py-20 bg-zinc-50 dark:bg-zinc-950 relative overflow-hidden">
       
       {/* Background Doodle: Dot Grid */}
       <div className="absolute inset-0 opacity-[0.05]" 

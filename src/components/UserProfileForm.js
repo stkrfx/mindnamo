@@ -1,7 +1,7 @@
 /*
  * File: src/components/UserProfileForm.js
- * SR-DEV: Interactive User Profile Form
- * ACTION: ADDED useSessionUpdater (File 103) to sync profile changes to the Header.
+ * SR-DEV: Premium Profile Form (Final Polish)
+ * FIX: Solved "Maximum update depth exceeded" by stopping event propagation on Checkbox.
  */
 
 "use client";
@@ -12,20 +12,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { updateUserAction } from "@/actions/user";
 import { useUploadThing } from "@/lib/uploadthing";
-import { useSessionUpdater } from "@/lib/session"; // **NEW IMPORT**
+import { useSessionUpdater } from "@/lib/session"; 
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-// UI Components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
 import ProfileImage from "@/components/ProfileImage";
-import { Loader2, Camera, Save, User, Bell, Shield } from "lucide-react";
+import { Loader2, Camera, Save, User, Bell, Mail, CheckCircle2 } from "lucide-react";
 
-// Schema matching the server action validation
 const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(60),
   profilePicture: z.string().optional(),
@@ -35,7 +32,7 @@ const profileSchema = z.object({
 });
 
 export default function UserProfileForm({ user }) {
-  const updateSession = useSessionUpdater(); // **NEW HOOK**
+  const updateSession = useSessionUpdater();
   const [isPending, startTransition] = useTransition();
   const [previewImage, setPreviewImage] = useState(user.profilePicture || "");
   const fileInputRef = useRef(null);
@@ -57,7 +54,6 @@ export default function UserProfileForm({ user }) {
     },
   });
 
-  // --- File Upload Logic ---
   const { startUpload, isUploading } = useUploadThing("profilePicture", {
     onClientUploadComplete: (res) => {
       if (res && res[0]) {
@@ -67,24 +63,17 @@ export default function UserProfileForm({ user }) {
         toast.success("Image uploaded successfully");
       }
     },
-    onUploadError: (error) => {
-      toast.error(`Upload failed: ${error.message}`);
-    },
+    onUploadError: (error) => toast.error(`Upload failed: ${error.message}`),
   });
 
   const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    // Optimistic preview (blob)
     const objectUrl = URL.createObjectURL(file);
     setPreviewImage(objectUrl);
-
-    // Start upload
     await startUpload([file]);
   };
 
-  // --- Submit Logic ---
   const onSubmit = (data) => {
     startTransition(async () => {
       const formData = new FormData();
@@ -97,163 +86,143 @@ export default function UserProfileForm({ user }) {
       const result = await updateUserAction(formData);
 
       if (result.success) {
-        toast.success("Profile Updated", {
-          description: "Your changes have been saved successfully.",
-        });
-        
-        // **CRITICAL SYNCHRONIZATION STEP**
-        // Update the NextAuth session to reflect the new name and image instantly.
+        toast.success("Profile Updated");
         await updateSession({ name: data.name, profilePicture: data.profilePicture });
-
       } else {
-        toast.error("Update Failed", {
-          description: result.message,
-        });
+        toast.error(result.message);
       }
     });
   };
 
+  // Helper to toggle checkbox safely
+  const toggleNotification = (id) => {
+    setValue(id, !watch(id), { shouldDirty: true });
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="divide-y divide-zinc-100 dark:divide-zinc-800">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
       
-      {/* 1. General Info */}
-      <div className="p-6 md:p-8 space-y-8">
-        <div className="flex flex-col md:flex-row gap-8 items-start">
-          
-          {/* Avatar Upload */}
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative group">
-              <div className="relative h-24 w-24 rounded-full overflow-hidden border-2 border-zinc-100 dark:border-zinc-800 shadow-sm">
-                <ProfileImage 
-                  src={previewImage} 
-                  name={watch("name")} 
-                  sizeClass="h-full w-full" 
-                  textClass="text-2xl"
-                />
-                {isUploading && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+      {/* 1. IDENTITY CARD */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl p-8 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-visible">
+         {/* Top Gradient Banner */}
+         <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-zinc-100 to-zinc-50 dark:from-zinc-800 dark:to-zinc-900/50 rounded-t-2xl overflow-hidden" />
+         
+         <div className="relative flex flex-col md:flex-row gap-8 items-start">
+            
+            {/* AVATAR SECTION */}
+            <div className="flex-shrink-0 pt-2">
+               <div className="relative group inline-block">
+                  {/* Image Container */}
+                  <div className="h-32 w-32 rounded-full ring-4 ring-white dark:ring-zinc-900 shadow-xl overflow-hidden bg-white dark:bg-zinc-800 relative z-10">
+                     <ProfileImage 
+                       src={previewImage} 
+                       name={watch("name")} 
+                       sizeClass="h-full w-full" 
+                       textClass="text-3xl"
+                     />
+                     {isUploading && (
+                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 backdrop-blur-sm">
+                         <Loader2 className="w-8 h-8 text-white animate-spin" />
+                       </div>
+                     )}
                   </div>
-                )}
-              </div>
-              <button
-                type="button"
-                disabled={isUploading || isPending}
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 p-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full shadow-sm hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-              >
-                <Camera className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
-              </button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*"
-                onChange={handleImageChange}
-              />
-            </div>
-            <p className="text-xs text-zinc-500 font-medium">JPG, PNG max 4MB</p>
-          </div>
 
-          {/* Text Fields */}
-          <div className="flex-1 w-full space-y-6 max-w-md">
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-zinc-700 dark:text-zinc-300">Display Name</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
-                <Input 
-                  id="name" 
-                  {...register("name")} 
-                  className="pl-9 bg-zinc-50/50 dark:bg-zinc-900" 
-                  placeholder="Your Name" 
-                />
-              </div>
-              {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+                  {/* Camera Button */}
+                  <button
+                    type="button"
+                    disabled={isUploading || isPending}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute bottom-1 right-1 z-50 p-2.5 bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 rounded-full shadow-lg hover:scale-110 transition-transform cursor-pointer border-2 border-white dark:border-zinc-900 flex items-center justify-center"
+                    title="Change Profile Picture"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageChange} />
+               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-zinc-700 dark:text-zinc-300">Email Address</Label>
-              <Input 
-                id="email" 
-                value={user.email} 
-                disabled 
-                className="bg-zinc-100 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed" 
-              />
-              <p className="text-xs text-zinc-400">
-                Email cannot be changed securely here. Contact support if needed.
-              </p>
+            {/* Inputs */}
+            <div className="flex-1 w-full space-y-6 pt-4">
+               <div>
+                  <h3 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                    {watch("name") || "Your Name"}
+                    {user.isVerified && <CheckCircle2 className="w-5 h-5 text-green-500 fill-current" />}
+                  </h3>
+                  <p className="text-zinc-500 text-sm">{user.email}</p>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                     <Label className="text-zinc-700 dark:text-zinc-300">Display Name</Label>
+                     <div className="relative">
+                        <User className="absolute left-3 top-2.5 h-5 w-5 text-zinc-400" />
+                        <Input {...register("name")} className="pl-10 h-11 bg-zinc-50 dark:bg-zinc-950" placeholder="Full Name" />
+                     </div>
+                     {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                     <Label className="text-zinc-700 dark:text-zinc-300">Email Address</Label>
+                     <div className="relative">
+                        <Mail className="absolute left-3 top-2.5 h-5 w-5 text-zinc-400" />
+                        <Input value={user.email} disabled className="pl-10 h-11 bg-zinc-100 dark:bg-zinc-800 text-zinc-500" />
+                     </div>
+                  </div>
+               </div>
             </div>
-          </div>
-        </div>
+         </div>
       </div>
 
-      {/* 2. Notification Preferences */}
-      <div className="p-6 md:p-8">
-        <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-1 flex items-center gap-2">
-          <Bell className="w-4 h-4" /> Notifications
-        </h3>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
-          Choose what updates you want to receive.
-        </p>
-
-        <div className="space-y-4 max-w-2xl">
-          
-          <div className="flex items-start space-x-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
-            <Checkbox id="transactional" checked={watch("transactional")} onCheckedChange={(c) => setValue("transactional", c, { shouldDirty: true })} />
-            <div className="grid gap-1.5 leading-none">
-              <label htmlFor="transactional" className="text-sm font-medium text-zinc-900 dark:text-zinc-100 cursor-pointer">
-                Session Updates
-              </label>
-              <p className="text-xs text-zinc-500">
-                Reminders about upcoming sessions, cancellations, and messages. (Recommended)
-              </p>
+      {/* 2. NOTIFICATIONS CARD */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl p-8 border border-zinc-200 dark:border-zinc-800 shadow-sm">
+         <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg"><Bell className="w-5 h-5 text-zinc-600 dark:text-zinc-400" /></div>
+            <div>
+               <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Email Notifications</h3>
+               <p className="text-sm text-zinc-500">Manage what emails you receive from us.</p>
             </div>
-          </div>
+         </div>
 
-          <div className="flex items-start space-x-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
-            <Checkbox id="security" checked={watch("security")} onCheckedChange={(c) => setValue("security", c, { shouldDirty: true })} />
-            <div className="grid gap-1.5 leading-none">
-              <label htmlFor="security" className="text-sm font-medium text-zinc-900 dark:text-zinc-100 cursor-pointer">
-                Security Alerts
-              </label>
-              <p className="text-xs text-zinc-500">
-                Notifications about login attempts and password changes.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start space-x-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
-            <Checkbox id="marketing" checked={watch("marketing")} onCheckedChange={(c) => setValue("marketing", c, { shouldDirty: true })} />
-            <div className="grid gap-1.5 leading-none">
-              <label htmlFor="marketing" className="text-sm font-medium text-zinc-900 dark:text-zinc-100 cursor-pointer">
-                Wellness Tips & News
-              </label>
-              <p className="text-xs text-zinc-500">
-                Weekly mental health tips and platform updates.
-              </p>
-            </div>
-          </div>
-
-        </div>
+         <div className="space-y-4 divide-y divide-zinc-100 dark:divide-zinc-800">
+             {[
+               { id: "transactional", label: "Session Updates", desc: "Reminders for bookings and messages.", required: true },
+               { id: "security", label: "Security Alerts", desc: "Login attempts and password changes.", required: true },
+               { id: "marketing", label: "Wellness Tips", desc: "Weekly mental health guides.", required: false }
+             ].map((item) => (
+                <div 
+                  key={item.id} 
+                  className="flex items-start justify-between py-4 first:pt-0 last:pb-0 group cursor-pointer" 
+                  onClick={() => toggleNotification(item.id)} // Row click logic
+                >
+                   <div>
+                      <Label htmlFor={item.id} className="text-base font-medium text-zinc-900 dark:text-white cursor-pointer group-hover:text-primary transition-colors">{item.label}</Label>
+                      <p className="text-sm text-zinc-500 mt-0.5">{item.desc}</p>
+                   </div>
+                   
+                   {/* FIX: Stop Propagation to prevent double-toggle infinite loop */}
+                   <div className="flex items-center h-6" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox 
+                        id={item.id} 
+                        checked={watch(item.id)} 
+                        onCheckedChange={(c) => setValue(item.id, c, { shouldDirty: true })}
+                        className="h-6 w-6 rounded-md border-zinc-300 dark:border-zinc-600 data-[state=checked]:bg-zinc-900 data-[state=checked]:border-zinc-900 data-[state=checked]:text-white dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white dark:data-[state=checked]:text-zinc-900" 
+                      />
+                   </div>
+                </div>
+             ))}
+         </div>
       </div>
 
-      {/* 3. Actions */}
-      <div className="p-6 md:p-8 bg-zinc-50/30 dark:bg-zinc-900/30 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs text-zinc-400">
-          <Shield className="w-3.5 h-3.5" />
-          Your data is securely encrypted.
-        </div>
-        <Button 
-          type="submit" 
-          disabled={isPending || !isDirty}
-          className={cn("min-w-[120px]", isDirty && "animate-pulse-slow")}
-        >
-          {isPending ? (
-            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
-          ) : (
-            <><Save className="w-4 h-4 mr-2" /> Save Changes</>
-          )}
-        </Button>
+      {/* 3. SAVE BAR */}
+      <div className="flex justify-end pt-4">
+         <Button 
+            type="submit" 
+            size="lg"
+            disabled={isPending || !isDirty} 
+            className={cn("h-12 px-8 rounded-xl font-semibold shadow-lg transition-all", isDirty ? "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 hover:scale-[1.02]" : "opacity-50 cursor-not-allowed")}
+         >
+            {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save Changes</>}
+         </Button>
       </div>
 
     </form>

@@ -1,7 +1,6 @@
 /*
  * File: src/app/profile/page.js
- * SR-DEV: User Profile Page (Server Component)
- * ACTION: Updated to use UserProfileTabs (File 100).
+ * SR-DEV: Settings Page Container (Redesigned)
  */
 
 import { Suspense } from "react";
@@ -9,20 +8,19 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect } from "next/navigation";
 import { getUser } from "@/actions/user";
-// import UserProfileForm from "@/components/UserProfileForm"; // REMOVED
-import UserProfileTabs from "@/components/UserProfileTabs"; // ADDED
+import UserProfileTabs from "@/components/UserProfileTabs";
 import { Loader2Icon } from "@/components/Icons";
 
 export const metadata = {
   title: "Account Settings | Mind Namo",
-  description: "Manage your profile details and preferences.",
+  description: "Manage your profile details and security preferences.",
 };
 
 function Loading() {
   return (
-    <div className="flex flex-col items-center justify-center py-24 space-y-4">
+    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
       <Loader2Icon className="h-10 w-10 animate-spin text-zinc-300" />
-      <p className="text-sm text-zinc-500">Loading profile...</p>
+      <p className="text-sm text-zinc-500 font-medium animate-pulse">Loading settings...</p>
     </div>
   );
 }
@@ -41,23 +39,12 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-zinc-50/50 dark:bg-zinc-950">
-      <main className="container mx-auto max-w-4xl px-4 md:px-8 py-12 flex-1">
-        
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">Account Settings</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-2">
-            Manage your personal information and notification preferences.
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-          <Suspense fallback={<Loading />}>
-            {/* Renders the tab structure with the fetched user data */}
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+      {/* Page Content */}
+      <main className="container mx-auto max-w-6xl px-4 md:px-6 py-12">
+         <Suspense fallback={<Loading />}>
             <UserProfileTabs user={result.user} /> 
-          </Suspense>
-        </div>
-
+         </Suspense>
       </main>
     </div>
   );
