@@ -118,7 +118,11 @@ export async function createAppointmentAction(bookingData) {
     return { success: false, message: "Authentication failed. Please log in." };
   }
 
-  // CRITICAL BUG FIX (Date/Time Serialization)
+  // --- FIX START: Parse duration to an integer ---
+  // Ensure duration is a number to prevent string concatenation (e.g. "975" + "75" = "97575")
+  const duration = parseInt(bookingData.duration, 10); 
+  // --- FIX END ---
+
   const datePart = bookingData.date;        
   const timePart = bookingData.time;        
   const timeZone = bookingData.timezone;    
@@ -129,14 +133,14 @@ export async function createAppointmentAction(bookingData) {
   // Use parseISO to create the canonical UTC Date object
   const fullAppointmentDateTime = parseISO(combinedUTCTimeString); 
   
-  // 1. Re-Validate - PASS LOCAL TIME STRING for comparison
+  // 1. Re-Validate - Pass the parsed number 'duration'
   const validation = await validateBookingRequest(
     bookingData.expertId,
     bookingData.serviceName,
     bookingData.type,
     fullAppointmentDateTime, 
-    bookingData.duration,
-    bookingData.time // <-- PASS LOCAL HH:MM STRING for validation against expert schedule
+    duration, // <--- CHANGED from bookingData.duration to duration
+    bookingData.time 
   );
 
   if (validation.error) return { success: false, message: validation.error };

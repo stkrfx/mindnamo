@@ -1,11 +1,7 @@
 /*
  * File: src/components/home/TestimonialsSection.js
  * SR-DEV: Premium Testimonials (Social Proof)
- *
- * FEATURES:
- * - Responsive Grid Layout.
- * - Rich User Cards: Avatar, Role, Verified Badge.
- * - Background Doodles for brand consistency.
+ * ACTION: Limited visible reviews to 3 on mobile devices for better UX.
  */
 
 "use client";
@@ -85,7 +81,13 @@ export default function TestimonialsSection() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
            {REVIEWS.map((review, i) => (
-             <TestimonialCard key={i} review={review} />
+             <TestimonialCard 
+                key={i} 
+                review={review}
+                // FIX: Hide the 4th, 5th, and 6th reviews (index 3+) on mobile screens, 
+                // but show them as flex items on medium screens and up.
+                className={i >= 3 ? "hidden md:flex" : ""} 
+             />
            ))}
         </div>
 
@@ -94,9 +96,9 @@ export default function TestimonialsSection() {
   );
 }
 
-function TestimonialCard({ review }) {
+function TestimonialCard({ review, className }) {
   return (
-    <div className="flex flex-col p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm hover:shadow-md transition-shadow h-full">
+    <div className={cn("flex flex-col p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm hover:shadow-md transition-shadow h-full", className)}>
        
        {/* Quote Icon */}
        <div className="mb-4 text-blue-100 dark:text-blue-900/30">

@@ -1,7 +1,12 @@
 /*
  * File: src/app/chat/ChatClient.js
  * SR-DEV: Premium User Chat UI - Final Production Version
- * ACTION: FIXED ReferenceError by importing disconnectSocket (124).
+ * Features:
+ * - Real-time Socket.io integration (Chat + Typing + Online Status)
+ * - Optimistic Updates with Unique IDs
+ * - Voice Notes & File Uploads
+ * - Responsive Sidebar logic
+ * - Modular Message Component Integration
  */
 
 "use client";
@@ -14,10 +19,11 @@ import ProfileImage from "@/components/ProfileImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getMessages } from "@/actions/chat";
-import { initSocket, disconnectSocket, getSocket } from "@/lib/socket-client"; // <-- ADDED disconnectSocket
+import { initSocket, disconnectSocket, getSocket } from "@/lib/socket-client";
 import { useUploadThing } from "@/lib/uploadthing";
-import ChatMessages from "@/components/chat/ChatMessages"; // **NEW IMPORT (File 135)**
+import ChatMessages from "@/components/chat/ChatMessages"; // Modular component
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 // --- Icons ---
 import { 
@@ -25,7 +31,8 @@ import {
   ChevronLeft, Loader2, MessageSquare, AlertTriangle
 } from "lucide-react";
 
-// --- CORE COMPONENT ---
+// Helper for generating a semi-unique ID (more robust than just Date.now())
+const generateTempId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
 export default function ChatClient({ initialConversations, currentUser }) {
   const router = useRouter();
@@ -53,7 +60,7 @@ export default function ChatClient({ initialConversations, currentUser }) {
   const { startUpload } = useUploadThing("chatAttachment", {
     onClientUploadComplete: (res) => {
       if (res && res[0]) {
-        // Simple logic: determine file type for preview text
+        // Determine file type for simple preview logic
         const fileType = res[0].key.split('.').pop();
         const contentType = ['jpg', 'jpeg', 'png', 'gif'].includes(fileType.toLowerCase()) ? 'image' : 'pdf';
 
@@ -81,13 +88,21 @@ export default function ChatClient({ initialConversations, currentUser }) {
       setSocket(skt);
 
       skt.on("receiveMessage", (newMsg) => {
-        // Only update message state if we are currently viewing the conversation
         if (newMsg.conversationId === selectedId) {
-          setMessages((prev) => [...prev, newMsg]);
-          // Mark message as read when received
+          // **CRITICAL FIX LOGIC:** Replace the optimistic message with the final server object
+          setMessages((prev) => {
+             // If the message has a temporary ID, replace it. Otherwise, append.
+             const isOptimistic = prev.some(m => m._id === newMsg.tempId); 
+             
+             if (isOptimistic) {
+                 return prev.map(m => m._id === newMsg.tempId ? { ...newMsg, _id: newMsg._id } : m);
+             }
+             return [...prev, newMsg];
+          });
+          
           skt.emit("markAsRead", { conversationId: selectedId, userId: currentUser.id });
         }
-        updateConversationPreview(newMsg, false); // Don't block UI with full re-fetch
+        updateConversationPreview(newMsg); 
       });
 
       skt.on("userStatusChanged", ({ userId, isOnline }) => {
@@ -117,13 +132,12 @@ export default function ChatClient({ initialConversations, currentUser }) {
     setupSocket();
 
     return () => {
-      // FIX: Disconnect socket on unmount
       disconnectSocket();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser.id]);
+  }, [currentUser.id, selectedId]);
 
-  // --- 2. LOAD MESSAGES ON SELECTION/JOIN ROOM ---
+  // --- 2. LOAD MESSAGES ON SELECTION ---
   useEffect(() => {
     if (selectedId) {
       setIsSidebarOpen(false); // Close sidebar on mobile
@@ -148,10 +162,8 @@ export default function ChatClient({ initialConversations, currentUser }) {
   // Helpers
   const updateConversationPreview = (msg) => {
     setConversations((prev) => {
-      // Logic to find the updated chat and move it to the top
       const updated = prev.map(c => {
         if (c._id === msg.conversationId) {
-          // Simplistic preview update
           let previewText = msg.content;
           if (msg.contentType !== 'text') previewText = `[${msg.contentType}]`;
 
@@ -160,13 +172,11 @@ export default function ChatClient({ initialConversations, currentUser }) {
             lastMessage: previewText,
             lastMessageAt: msg.createdAt,
             lastMessageStatus: "delivered",
-            // Assuming the sender is the Expert, increment user's unread count for the UI list
             userUnreadCount: msg.senderModel === 'Expert' ? c.userUnreadCount + 1 : 0 
           };
         }
         return c;
       });
-      // Sort by recent activity
       return updated.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
     });
   };
@@ -188,16 +198,19 @@ export default function ChatClient({ initialConversations, currentUser }) {
   const sendMessage = (type = "text", content = inputValue) => {
     if (!content.trim() && type === "text") return;
 
+    const tempId = generateTempId(); // Use robust temporary ID
+    
     // 1. Optimistic Update
     const optimisticMsg = {
-      _id: Date.now().toString(),
+      _id: tempId, 
+      tempId: tempId,
       conversationId: selectedId,
       sender: currentUser.id,
       senderModel: "User",
       content,
       contentType: type,
       createdAt: new Date().toISOString(),
-      status: "sending", // Temporary status
+      status: "sending", 
       readBy: [currentUser.id]
     };
     
@@ -207,6 +220,7 @@ export default function ChatClient({ initialConversations, currentUser }) {
     // 2. Socket Emit
     if (socket) {
       socket.emit("sendMessage", {
+        tempId: tempId, // Pass tempId so server echoes it back
         conversationId: selectedId,
         sender: currentUser.id,
         senderModel: "User",

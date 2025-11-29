@@ -1,21 +1,41 @@
 /*
  * File: src/app/experts/page.js
- * SR-DEV: Experts Page Container
- * ACTION: Updated to use new layout (132) and action (138) for Infinite Scroll setup (146).
  */
 
 import { Suspense } from "react";
 import ExpertSearchClient from "@/components/ExpertSearchClient";
-import ExpertsLoading from "./loading"; // Renamed loading component for clarity
-import { getExpertsAction } from "@/actions/experts"; // New action for paged fetching
+import ExpertsLoading from "./loading"; 
+import { getExpertsAction } from "@/actions/experts"; 
 import { AlertTriangle } from "lucide-react";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+// --- UPDATED METADATA ---
 export const metadata = {
   title: "Experts | Mind Namo",
   description: "Browse certified psychologists, therapists, and life coaches. Filter by specialization, price, and language.",
+  openGraph: {
+    title: "Find Your Perfect Mental Health Expert | Mind Namo",
+    description: "Connect with verified psychologists and coaches. Filter by specialization, language, and price.",
+    url: "/experts",
+    siteName: "Mind Namo",
+    images: [
+      {
+        url: "/og-experts.jpg", // Make sure this image exists in /public
+        width: 1200,
+        height: 630,
+        alt: "Mind Namo Expert Directory",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Browse Top Mental Health Experts",
+    description: "Find the right therapist for you on Mind Namo.",
+    images: ["/og-experts.jpg"],
+  },
 };
 
 async function getInitialData() {
@@ -23,7 +43,6 @@ async function getInitialData() {
   
   if (!result.success) {
     console.error("Failed to fetch initial expert data:", result.message);
-    // Return a failed state structure for the client to handle
     return {
       experts: [],
       total: 0,
@@ -33,7 +52,6 @@ async function getInitialData() {
     };
   }
 
-  // Pass only the data needed for the initial render and filter setup
   return {
     experts: result.experts,
     total: result.total,

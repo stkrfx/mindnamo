@@ -30,7 +30,7 @@ export default function HowItWorksSection() {
   ];
 
   return (
-    <section className="py-32 bg-white dark:bg-zinc-950 relative overflow-hidden">
+    <section id="how-it-works" className="py-32 bg-white dark:bg-zinc-950 relative overflow-hidden">
       <div className="container px-4 mx-auto max-w-6xl">
         
         <div className="text-center max-w-3xl mx-auto mb-24">

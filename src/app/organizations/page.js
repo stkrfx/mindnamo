@@ -1,31 +1,51 @@
 /*
  * File: src/app/organizations/page.js
- * SR-DEV: Organization Listing Page (Server Component)
- * ACTION: Integrated with Server Action (File 128) and OrganizationCard (File 129).
  */
 
 import { Suspense } from "react";
 import Link from "next/link";
 import { Loader2Icon } from "@/components/Icons";
 import { Building2, AlertTriangle } from "lucide-react";
-import { getOrganizationsAction } from "@/actions/organizations"; // File 128
-import OrganizationCard from "@/components/OrganizationCard"; // File 129
+import { getOrganizationsAction } from "@/actions/organizations"; 
+import OrganizationCard from "@/components/OrganizationCard"; 
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+// --- UPDATED METADATA ---
 export const metadata = {
   title: "Organizations | Mind Namo",
   description: "Browse companies and institutions offering wellness programs through Mind Namo's network of experts.",
+  openGraph: {
+    title: "Corporate & Institutional Wellness Partners | Mind Namo",
+    description: "Explore organizations prioritizing mental health. Find programs supported by your company or university.",
+    url: "/organizations",
+    siteName: "Mind Namo",
+    images: [
+      {
+        url: "/og-organizations.jpg", // Make sure this image exists in /public
+        width: 1200,
+        height: 630,
+        alt: "Mind Namo Wellness Partners",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Mind Namo Partner Organizations",
+    description: "See the companies leading the way in employee mental wellness.",
+    images: ["/og-organizations.jpg"],
+  },
 };
 
-// --- Data Fetcher ---
+// ... (Rest of the file remains exactly the same: getAllOrganizations, OrganizationListClient, OrganizationLoading, OrganizationsPage)
+
 async function getAllOrganizations() {
     const result = await getOrganizationsAction();
     return result;
 }
 
-// --- Client Component (Placeholder for dynamic rendering) ---
 function OrganizationListClient({ data }) {
     if (data.error) {
         return (
@@ -71,7 +91,6 @@ function OrganizationLoading() {
         </div>
     );
 }
-
 
 export default async function OrganizationsPage() {
     const data = await getAllOrganizations();

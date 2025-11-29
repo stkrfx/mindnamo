@@ -60,7 +60,7 @@ export default function HeroSection() {
                   Find Your Expert
                 </Button>
               </Link>
-              <Link href="/experts">
+              <Link href="/#how-it-works">
                  <Button variant="outline" size="lg" className="h-14 px-8 text-lg rounded-full border-zinc-300 hover:bg-white dark:border-zinc-700 dark:hover:bg-zinc-800 gap-2 w-full sm:w-auto group">
                    How it works 
                    <ArrowRight className="w-5 h-5 text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors" />
@@ -99,13 +99,13 @@ export default function HeroSection() {
           {/* --- RIGHT: ILLUSTRATION (FIXED) --- */}
           <div className="relative lg:h-[650px] w-full flex items-center justify-center perspective-1000">
              
-             {/* The Image Card Wrapper with Constant Radius and Soft Animation */}
-             <div className="group relative w-full max-w-md aspect-[4/5] overflow-hidden rounded-[2.5rem] shadow-2xl border-[8px] border-white dark:border-zinc-800 rotate-1 hover:rotate-0 transition-transform duration-700 ease-out">
+             {/* Main Image Card */}
+             <div className="relative w-full max-w-md aspect-[4/5] bg-zinc-100 dark:bg-zinc-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-[8px] border-white dark:border-zinc-800 rotate-2 hover:rotate-0 transition-transform duration-700 ease-out">
                  <Image 
                    src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?q=80&w=800&auto=format&fit=crop"
                    alt="Happy patient on video call"
                    fill
-                   className="object-cover transition-transform duration-700 group-hover:scale-105"
+                   className="object-cover"
                    priority
                  />
                  
